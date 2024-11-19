@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aplicación de Análisis Facial</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f0f4f8;
+            color: #333;
+        }
+
+        header {
+            background: linear-gradient(135deg, #6a11cb, #2575fc);
+            color: white;
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 2rem;
+        }
+
+        form {
+            background-color: #ffffff;
+            padding: 20px;
+            margin: 20px auto;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+            max-width: 600px;
+        }
+
+        label {
+            display: block;
+            font-size: 1rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        input[type="file"] {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: block;
+            width: 100%;
+            font-size: 1rem;
+        }
+
+        button {
+            background-color: #6a11cb;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+
+        button:hover {
+            background-color: #5a0fb4;
+            transform: translateY(-2px);
+        }
+
+        #results {
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+            max-width: 900px;
+        }
+
+        #resultImages {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .image-container {
+            text-align: center;
+        }
+
+        .image-container img {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        #loading {
+            text-align: center;
+            font-size: 1.5rem;
+            padding: 20px;
+            color: #6a11cb;
+        }
+
+        #error {
+            color: red;
+            text-align: center;
+            font-size: 1.2rem;
+            margin: 20px auto;
+        }
+
+        .previous-images {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+            max-width: 900px;
+            margin: auto;
+        }
+
+        .previous-images img {
+            max-width: 100%;
+            cursor: pointer;
+            border-radius: 8px;
+            transition: transform 0.3s ease;
+        }
+
+        .previous-images img:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Aplicación de Análisis Facial</h1>
+    </header>
+
+    <!-- Subir nuevas imágenes -->
+    <form id="uploadForm">
+        <label>Seleccione imágenes:</label>
+        <input type="file" name="files" accept=".jpg,.jpeg,.png" multiple />
+        <button type="submit">Analizar imágenes</button>
+    </form>
+
+    <!-- Resultados del análisis -->
+    <div id="results" style="display: none;">
+        <h2>Resultados del análisis</h2>
+        <div id="resultImages"></div>
+    </div>
+
+    <!-- Indicador de carga -->
+    <div id="loading" style="display: none;">
+        <p>Cargando...</p>
+    </div>
+
+    <!-- Visualización de errores -->
+    <div id="error" style="display: none;"></div>
+
+    <!-- Imágenes cargadas previamente -->
+    {% if images %}
+    <h2 style="text-align: center;">Imágenes cargadas previamente</h2>
+    <div class="previous-images">
+        {% for image in images %}
+        <div class="image-container">
+            <img src="{{ url_for('static', filename='uploads/' + image) }}" 
+                 alt="{{ image }}" 
+                 onclick="analyzeExisting('{{ image }}')" 
+                 title="Analizar {{ image }}">
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <script>
+        function showLoading() {
+            $('#loading').show();
+            $('#error').hide();
+            $('#results').hide();
+        }
+
+        function hideLoading() {
+            $('#loading').hide();
+        }
+
+        $(document).ready(function() {
+            $('#uploadForm').on('submit', function(e) {
+                e.preventDefault();
+                var formData = new FormData(this);
+                showLoading();
+                
+                $.ajax({
+                    url: '/analyze',
+                    type: 'POST',
+                    data: formData,
+                    contentType: false,
+                    processData: false,
+                    success: function(response) {
+                        hideLoading();
+                        $('#results').show();
+                        $('#resultImages').empty();  // Limpiar resultados previos
+
+                        // Mostrar imágenes procesadas
+                        $.each(response.images, function(filename, images) {
+                            var imageHtml = `
+                                <div class="image-container">
+                                    <h3>${filename}</h3>
+                                    <img src="data:image/png;base64,${images.original}" alt="Original">
+                                    <img src="data:image/png;base64,${images.flipped}" alt="Invertida">
+                                    <img src="data:image/png;base64,${images.brightened}" alt="Aumentada">
+                                    <img src="data:image/png;base64,${images.rotated}" alt="Rotada">
+                                </div>`;
+                            $('#resultImages').append(imageHtml);
+                        });
+                    },
+                    error: function(xhr) {
+                        hideLoading();
+                        $('#error').show().text(xhr.responseJSON?.error || 'Ocurrió un error');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
